@@ -113,4 +113,3 @@ if st.button("Generate Code"):
 
         explanation = generate_explanation(code, prog_lang, local_lang)
         st.write(explanation)
-
