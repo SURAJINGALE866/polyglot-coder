@@ -3,6 +3,11 @@ import subprocess
 import sys
 from googletrans import Translator
 import openai
+import nest_asyncio
+import asyncio
+
+# Apply nest_asyncio to allow asyncio to run in Streamlit's event loop
+nest_asyncio.apply()
 
 # -------------------------------
 # Configuration
@@ -19,14 +24,15 @@ translator = Translator()
 # -------------------------------
 # User settings
 # -------------------------------
-local_lang = st.selectbox("Choose your local language", ["mr", "hi", "en", "es"])
-prog_lang = st.selectbox("Choose programming language", ["Python", "Java", "C++", "JavaScript"])
+local_lang = st.selectbox("Choose your local language", ["Abkhaz", "Acehnese", "Acholi", "Afrikaans", "Albanian", "Alur", "Amharic", "Arabic", "Armenian", "Assamese", "Awadhi", "Aymara", "Azerbaijani", "Balinese", "Bambara", "Bashkir", "Basque", "Batak Karo", "Batak Simalungun", "Batak Toba", "Belarusian", "Bemba", "Bengali", "Betawi", "Bhojpuri", "Bikol", "Bosnian", "Breton", "Bulgarian", "Buryat", "Cantonese", "Catalan", "Cebuano", "Chichewa", "Chinese (Simplified)", "Chinese (Traditional)", "Chuvash", "Corsican", "Crimean Tatar", "Croatian", "Czech", "Danish", "Dinka", "Divehi", "Dogri", "Dombe", "Dutch", "Dzongkha", "English", "Esperanto", "Estonian", "Ewe", "Fijian", "Filipino", "Finnish", "French", "Frisian", "Fulfulde", "Ga", "Galician", "Ganda", "Georgian", "German", "Greek", "Guarani", "Gujarati", "Haitian Creole", "Hakha Chin", "Hausa", "Hawaiian", "Hebrew", "Hiligaynon", "Hindi", "Hmong", "Hungarian", "Hunsrik", "Icelandic", "Igbo", "Iloko", "Indonesian", "Irish", "Italian", "Japanese", "Javanese", "Kannada", "Kapampangan", "Kazakh", "Khmer", "Kiga", "Kinyarwanda", "Kituba", "Konkani", "Korean", "Krio", "Kurdish (Kurmanji)", "Kurdish (Sorani)", "Kyrgyz", "Lao", "Latgalian", "Latin", "Latvian", "Ligurian", "Limburgan", "Lingala", "Lithuanian", "Lombard", "Luo", "Luxembourgish", "Macedonian", "Maithili", "Makassar", "Malagasy", "Malay", "Malayalam", "Maltese", "Maori", "Marathi", "Meadow Mari", "Meiteilon (Manipuri)", "Minang", "Mizo", "Mongolian", "Myanmar (Burmese)", "Ndebele (South)", "Nepalbhasa (Newari)", "Nepali", "Northern Sotho", "Norwegian", "Nuer", "Occitan", "Odia (Oriya)", "Oromo", "Pangasinan", "Papiamento", "Pashto", "Persian", "Polish", "Portuguese", "Punjabi", "Punjabi (Shahmukhi)", "Quechua", "Romani", "Romanian", "Rundi", "Russian", "Samoan", "Sango", "Sanskrit", "Scots Gaelic", "Serbian", "Sesotho", "Seychellois Creole", "Shan", "Shona", "Sicilian", "Silesian", "Sindhi", "Sinhala (Sinhalese)", "Slovak", "Slovenian", "Somali", "Spanish", "Sundanese", "Swahili", "Swati", "Swedish", "Tajik", "Tamil", "Tatar", "Telugu", "Tetum", "Thai", "Tigrinya", "Tsonga", "Tswana", "Turkish", "Turkmen", "Twi", "Ukrainian", "Urdu", "Uyghur", "Uzbek", "Vietnamese", "Welsh", "Xhosa", "Yiddish", "Yoruba", "Yucatec Maya", "Zulu"])
+prog_lang = st.selectbox("Choose programming language", ["Python", "JavaScript", "Java", "C++", "C#", "Go", "PHP", "Swift", "Ruby", "Rust", "TypeScript", "Kotlin", "Perl", "R", "SQL"])
 user_request = st.text_area("✍ Describe what you want the code to do in your language")
 
 # -------------------------------
 # Step 1: Translate user request to English for AI processing
 # -------------------------------
-request_en = translator.translate(user_request, src=local_lang, dest='en').text
+if user_request:
+    request_en = asyncio.run(translator.translate(user_request, src=local_lang, dest='en')).text
 
 # -------------------------------
 # Step 2: Generate Code via OpenAI
@@ -46,70 +52,71 @@ def generate_code(prompt, lang):
     return response.choices[0].text.strip()
 
 if st.button("Generate Code"):
-    with st.spinner("Generating code..."):
-        code = generate_code(request_en, prog_lang)
-        st.subheader(f"🔹 Generated {prog_lang} Code:")
-        st.code(code, language=prog_lang.lower())
+    if 'request_en' in locals():
+        with st.spinner("Generating code..."):
+            code = generate_code(request_en, prog_lang)
+            st.subheader(f"🔹 Generated {prog_lang} Code:")
+            st.code(code, language=prog_lang.lower())
 
-        # -------------------------------
-        # Step 3: Run code safely
-        # -------------------------------
-        output = ""
-        error_msg = ""
+            # -------------------------------
+            # Step 3: Run code safely
+            # -------------------------------
+            output = ""
+            error_msg = ""
 
-        try:
-            if prog_lang == "Python":
-                exec_globals = {}
-                exec(code, {}, exec_globals)
-                output = exec_globals.get("_result", "")
-            elif prog_lang == "Java":
-                with open("Main.java", "w", encoding="utf-8") as f:
-                    f.write(code)
-                subprocess.run(["javac", "Main.java"], check=True)
-                result = subprocess.run(["java", "Main"], capture_output=True, text=True)
-                output = result.stdout
-            elif prog_lang == "C++":
-                with open("main.cpp", "w", encoding="utf-8") as f:
-                    f.write(code)
-                subprocess.run(["g++", "main.cpp", "-o", "main"], check=True)
-                result = subprocess.run(["./main"], capture_output=True, text=True)
-                output = result.stdout
-            elif prog_lang == "JavaScript":
-                with open("script.js", "w", encoding="utf-8") as f:
-                    f.write(code)
-                result = subprocess.run(["node", "script.js"], capture_output=True, text=True)
-                output = result.stdout
-        except subprocess.CalledProcessError as e:
-            error_msg = translator.translate(str(e), dest=local_lang).text
-        except Exception as e:
-            error_msg = translator.translate(str(e), dest=local_lang).text
+            try:
+                if prog_lang == "Python":
+                    exec_globals = {}
+                    exec(code, {}, exec_globals)
+                    output = exec_globals.get("_result", "")
+                elif prog_lang == "Java":
+                    with open("Main.java", "w", encoding="utf-8") as f:
+                        f.write(code)
+                    subprocess.run(["javac", "Main.java"], check=True)
+                    result = subprocess.run(["java", "Main"], capture_output=True, text=True)
+                    output = result.stdout
+                elif prog_lang == "C++":
+                    with open("main.cpp", "w", encoding="utf-8") as f:
+                        f.write(code)
+                    subprocess.run(["g++", "main.cpp", "-o", "main"], check=True)
+                    result = subprocess.run(["./main"], capture_output=True, text=True)
+                    output = result.stdout
+                elif prog_lang == "JavaScript":
+                    with open("script.js", "w", encoding="utf-8") as f:
+                        f.write(code)
+                    result = subprocess.run(["node", "script.js"], capture_output=True, text=True)
+                    output = result.stdout
+            except subprocess.CalledProcessError as e:
+                error_msg = asyncio.run(translator.translate(str(e), dest=local_lang)).text
+            except Exception as e:
+                error_msg = asyncio.run(translator.translate(str(e), dest=local_lang)).text
 
-        st.subheader("🖥 Output:")
-        st.write(output if output else "⚡ No output")
+            st.subheader("🖥 Output:")
+            st.write(output if output else "⚡ No output")
 
-        if error_msg:
-            st.subheader("❌ Error / Guidance:")
-            st.error(error_msg)
+            if error_msg:
+                st.subheader("❌ Error / Guidance:")
+                st.error(error_msg)
 
-        # -------------------------------
-        # Step 4: AI Teaching & Explanation
-        # -------------------------------
-        st.subheader("📘 AI Explanation / Teaching Tip:")
+            # -------------------------------
+            # Step 4: AI Teaching & Explanation
+            # -------------------------------
+            st.subheader("📘 AI Explanation / Teaching Tip:")
 
-        def generate_explanation(code_snippet, lang, user_language):
-            expl_prompt = f"""
-            Explain this {lang} code step by step for a beginner in simple words:
-            {code_snippet}
-            """
-            resp = openai.Completion.create(
-                engine="text-davinci-003",
-                prompt=expl_prompt,
-                max_tokens=300,
-                temperature=0
-            )
-            explanation_en = resp.choices[0].text.strip()
-            explanation_local = translator.translate(explanation_en, dest=user_language).text
-            return explanation_local
+            def generate_explanation(code_snippet, lang, user_language):
+                expl_prompt = f"""
+                Explain this {lang} code step by step for a beginner in simple words:
+                {code_snippet}
+                """
+                resp = openai.Completion.create(
+                    engine="text-davinci-003",
+                    prompt=expl_prompt,
+                    max_tokens=300,
+                    temperature=0
+                )
+                explanation_en = resp.choices[0].text.strip()
+                explanation_local = asyncio.run(translator.translate(explanation_en, dest=user_language)).text
+                return explanation_local
 
-        explanation = generate_explanation(code, prog_lang, local_lang)
-        st.write(explanation)
+            explanation = generate_explanation(code, prog_lang, local_lang)
+            st.write(explanation)
