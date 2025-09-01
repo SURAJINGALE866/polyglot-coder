@@ -1,3 +1,4 @@
 streamlit
-googletrans-py
+googletrans
 openai
+nest-asyncio
